@@ -2,7 +2,7 @@ package chat
 
 import "errors"
 
-var UserNotFoundEroor = errors.New("User не найден")
+var UserNotFoundError = errors.New("User не найден")
 var UserNotCreated = errors.New("User не создан")
 var UserAlreadyExists = errors.New("User с таким именем уже есть")
 var UsersNotFound = errors.New("Users пуст")

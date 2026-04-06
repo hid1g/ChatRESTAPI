@@ -1,7 +1,6 @@
 package chat
 
 import (
-	"os/user"
 	"sync"
 )
 

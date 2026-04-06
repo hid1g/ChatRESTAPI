@@ -25,10 +25,10 @@ func (l *ListMessage) SendMessage(message Message) (Message, error) {
 		return Message{}, MessageIsEmpty
 	}
 	if !l.users.UserExistByName(message.SendedFrom) {
-		return Message{}, UserNotFoundEroor
+		return Message{}, UserNotFoundError
 	}
 	if !l.users.UserExistByName(message.SendedTo) {
-		return Message{}, UserNotFoundEroor
+		return Message{}, UserNotFoundError
 	}
 	l.idsq++
 	id := l.idsq
@@ -43,7 +43,7 @@ func (l *ListMessage) GetMessagesByUser(username string) (map[int]Message, error
 	defer l.mtx.RUnlock()
 	tmp := make(map[int]Message)
 	if !l.users.UserExistByName(username) {
-		return nil, UserNotFoundEroor
+		return nil, UserNotFoundError
 	}
 
 	for id, msg := range l.message {
@@ -66,10 +66,15 @@ func (l *ListMessage) DeleteMessage(id int) error {
 	return nil
 }
 
-func (l *ListMessage) MessageIsRead() {
+func (l *ListMessage) MessageIsRead(id int) error {
+	l.mtx.Lock()
+	defer l.mtx.Lock()
 
-}
-
-func (l *ListMessage) MesaageIsNotRead() {
-
+	mes, ok := l.message[id]
+	if !ok {
+		return MessageNotFound
+	}
+	mes.Read()
+	l.message[id] = mes
+	return nil
 }

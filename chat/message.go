@@ -34,3 +34,9 @@ func (m *Message) NotSended() {
 	m.IsSended = false
 	m.SendedTime = nil
 }
+
+func (m *Message) Read() {
+	readtime := time.Now()
+	m.IsRead = true
+	m.SendedTime = &readtime
+}

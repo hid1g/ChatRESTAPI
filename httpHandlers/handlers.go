@@ -273,7 +273,7 @@ func (h *HtttpHandlers) GetMessagesByUserHandler(w http.ResponseWriter, r *http.
 	if err != nil {
 		panic(err)
 	}
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("content-type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write(b); err != nil {
 		fmt.Println("Writing error")
@@ -291,7 +291,7 @@ status code: 204
 body:
 
 failed:
-status code: json deleted book
+status code: 404
 body: json with error + time
 */
 func (h *HtttpHandlers) DeleteMessageHandler(w http.ResponseWriter, r *http.Request) {
@@ -313,4 +313,39 @@ func (h *HtttpHandlers) DeleteMessageHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+/*
+pattern: /chat/message/{id}
+method PATCH
+info pattern + method
+
+succeed:
+status code: 200
+body: -
+
+failed:
+Status code: 404
+*/
+func (h *HtttpHandlers) MessageIsReadHandler(w http.ResponseWriter, r *http.Request) {
+	idstr := mux.Vars(r)["id"]
+	id, err := strconv.Atoi(idstr)
+	if err != nil {
+		errDTO := NewErrDTO(err)
+		http.Error(w, errDTO.ErrToString(), http.StatusBadRequest)
+		return
+	}
+
+	if err := h.Chat.MessageIsRead(id); err != nil {
+		errDTO := NewErrDTO(err)
+
+		if errors.Is(err, chat.MessageNotFound) {
+			http.Error(w, errDTO.ErrToString(), http.StatusNotFound)
+			return
+		} else {
+			http.Error(w, errDTO.ErrToString(), http.StatusInternalServerError)
+			return
+		}
+	}
+	w.WriteHeader(http.StatusOK)
 }
