@@ -86,3 +86,24 @@ func (l *List) DeleteUser(id int) error {
 	delete(l.userById, id)
 	return nil
 }
+
+func (l *List) UpdateUser(id int, username string) error {
+	l.mtx.Lock()
+	defer l.mtx.Unlock()
+
+	user, ok := l.userById[id]
+	if !ok {
+		return UserNotFoundError
+	}
+	if _, exist := l.userByName[username]; exist {
+		return UserAlreadyExists
+	}
+
+	delete(l.userByName, user.Name)
+	user.Name = username
+	l.userById[id] = user
+	l.userByName[username] = id
+
+	return nil
+
+}

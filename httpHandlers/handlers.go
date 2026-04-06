@@ -164,7 +164,7 @@ info: pattern
 
 succed:
 status code: 204
-body: json represent deleted book
+body: json represent deleted message
 
 failed:
 status code: 404, 500 ...
@@ -190,6 +190,49 @@ func (h *HtttpHandlers) DeleteUserHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+/*
+pattern:/chat/{id}
+method: PUT
+info: json in request body
+
+succed:
+status code: 200
+body: json represent updated message
+
+failed:
+status code: 404, 500
+body: json with err + time
+*/
+func (h *HtttpHandlers) UpdateUserHandler(w http.ResponseWriter, r *http.Request) {
+	var userDTO UserDTO
+	if err := json.NewDecoder(r.Body).Decode(&userDTO); err != nil {
+		errDTO := NewErrDTO(err)
+		http.Error(w, errDTO.ErrToString(), http.StatusBadRequest)
+		return
+	}
+
+	idstr := mux.Vars(r)["id"]
+	id, err := strconv.Atoi(idstr)
+	if err != nil {
+		errDTO := NewErrDTO(err)
+		http.Error(w, errDTO.ErrToString(), http.StatusBadRequest)
+		return
+	}
+	if err := h.User.UpdateUser(id, userDTO.Name); err != nil {
+		errDTO := NewErrDTO(err)
+		if errors.Is(err, chat.UserNotFoundError) {
+			http.Error(w, errDTO.ErrToString(), http.StatusNotFound)
+		} else if errors.Is(err, chat.UserAlreadyExists) {
+			http.Error(w, errDTO.ErrToString(), http.StatusBadRequest)
+		} else {
+			http.Error(w, errDTO.ErrToString(), http.StatusInternalServerError)
+		}
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+
 }
 
 /*
@@ -346,6 +389,46 @@ func (h *HtttpHandlers) MessageIsReadHandler(w http.ResponseWriter, r *http.Requ
 			http.Error(w, errDTO.ErrToString(), http.StatusInternalServerError)
 			return
 		}
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+/*
+pattern: /chat/messages/{id}
+method: PUT
+info: pattern + json in request body
+
+succed:
+status code: 200
+body: json
+
+failed:
+status code: 404, 500
+*/
+
+func (h *HtttpHandlers) MessageUpdateHandler(w http.ResponseWriter, r *http.Request) {
+	var messageDTO MessageDTO
+	if err := json.NewDecoder(r.Body).Decode(&messageDTO); err != nil {
+		errDTO := NewErrDTO(err)
+		http.Error(w, errDTO.ErrToString(), http.StatusBadRequest)
+		return
+	}
+
+	idstr := mux.Vars(r)["id"]
+	id, err := strconv.Atoi(idstr)
+	if err != nil {
+		errDTO := NewErrDTO(err)
+		http.Error(w, errDTO.ErrToString(), http.StatusBadRequest)
+	}
+
+	if err := h.Chat.MessageUpdate(id, messageDTO.Text); err != nil {
+		errDTO := NewErrDTO(err)
+		if errors.Is(err, chat.MessageNotFound) {
+			http.Error(w, errDTO.ErrToString(), http.StatusNotFound)
+		} else {
+			http.Error(w, errDTO.ErrToString(), http.StatusInternalServerError)
+		}
+		return
 	}
 	w.WriteHeader(http.StatusOK)
 }

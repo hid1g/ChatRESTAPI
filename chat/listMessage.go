@@ -68,13 +68,26 @@ func (l *ListMessage) DeleteMessage(id int) error {
 
 func (l *ListMessage) MessageIsRead(id int) error {
 	l.mtx.Lock()
-	defer l.mtx.Lock()
+	defer l.mtx.Unlock()
 
 	mes, ok := l.message[id]
 	if !ok {
 		return MessageNotFound
 	}
 	mes.Read()
+	l.message[id] = mes
+	return nil
+}
+
+func (l *ListMessage) MessageUpdate(id int, newmessage string) error {
+	l.mtx.Lock()
+	defer l.mtx.Unlock()
+	mes, exist := l.message[id]
+	if !exist {
+		return MessageNotFound
+	}
+
+	mes.Text = newmessage
 	l.message[id] = mes
 	return nil
 }

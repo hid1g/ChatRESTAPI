@@ -23,11 +23,12 @@ func (s *HttpServer) StarServer() error {
 	router.Path("/chat/{name}").Methods("GET").HandlerFunc(s.httphandlersForServer.ListUserByNameHandler)
 	router.Path("/chat").Methods("GET").HandlerFunc(s.httphandlersForServer.ListUsersHandler)
 	router.Path("/chat/{id}").Methods("DELETE").HandlerFunc(s.httphandlersForServer.DeleteUserHandler)
+	router.Path("/chat/{id}").Methods("PUT").HandlerFunc(s.httphandlersForServer.UpdateUserHandler)
 	router.Path("/chat/message/{name}").Methods("POST").HandlerFunc(s.httphandlersForServer.SendMessageHandler)
 	router.Path("/chat/message/{name}").Methods("GET").HandlerFunc(s.httphandlersForServer.GetMessagesByUserHandler)
 	router.Path("/chat/message/{id}").Methods("DELETE").HandlerFunc(s.httphandlersForServer.DeleteMessageHandler)
 	router.Path("/chat/message/{id}").Methods("PATCH").HandlerFunc(s.httphandlersForServer.MessageIsReadHandler)
-
+	router.Path("/chat/message/{id}").Methods("PUT").HandlerFunc(s.httphandlersForServer.MessageUpdateHandler)
 	if err := http.ListenAndServe(":9091", router); err != nil {
 		if errors.Is(err, http.ErrServerClosed) {
 			return nil
