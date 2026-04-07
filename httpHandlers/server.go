@@ -29,6 +29,7 @@ func (s *HttpServer) StarServer() error {
 	router.Path("/chat/message/{id}").Methods("DELETE").HandlerFunc(s.httphandlersForServer.DeleteMessageHandler)
 	router.Path("/chat/message/{id}").Methods("PATCH").HandlerFunc(s.httphandlersForServer.MessageIsReadHandler)
 	router.Path("/chat/message/{id}").Methods("PUT").HandlerFunc(s.httphandlersForServer.MessageUpdateHandler)
+	router.Path("/chat/message/{user1}/{user2}").Methods("GET").HandlerFunc(s.httphandlersForServer.GetMessagesBetweenUsersHandler)
 	if err := http.ListenAndServe(":9091", router); err != nil {
 		if errors.Is(err, http.ErrServerClosed) {
 			return nil

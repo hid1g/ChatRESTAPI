@@ -419,6 +419,7 @@ func (h *HtttpHandlers) MessageUpdateHandler(w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		errDTO := NewErrDTO(err)
 		http.Error(w, errDTO.ErrToString(), http.StatusBadRequest)
+		return
 	}
 
 	if err := h.Chat.MessageUpdate(id, messageDTO.Text); err != nil {
@@ -431,4 +432,45 @@ func (h *HtttpHandlers) MessageUpdateHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	w.WriteHeader(http.StatusOK)
+}
+
+/*
+pattern:= /chat/messages/{user1}/{user2}
+method:GET
+info: pattern
+
+succed:
+status code: 200
+body; json
+
+failed:
+status code: 400, 404, 500 ...
+body: json with error + time
+*/
+
+func (h *HtttpHandlers) GetMessagesBetweenUsersHandler(w http.ResponseWriter, r *http.Request) {
+	user1 := mux.Vars(r)["user1"]
+	user2 := mux.Vars(r)["user2"]
+	mes, err := h.Chat.GetMeassagesBetweenUsers(user1, user2)
+	if err != nil {
+		errDTO := NewErrDTO(err)
+		if errors.Is(err, chat.UserNotFoundError) {
+			http.Error(w, errDTO.ErrToString(), http.StatusNotFound)
+		} else {
+			http.Error(w, errDTO.ErrToString(), http.StatusInternalServerError)
+		}
+		return
+	}
+	b, err := json.MarshalIndent(mes, "", "    ")
+	if err != nil {
+		panic(err)
+	}
+
+	w.Header().Set("content-type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(b); err != nil {
+		fmt.Println("Writing error")
+		return
+	}
+
 }

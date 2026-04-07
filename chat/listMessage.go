@@ -91,3 +91,18 @@ func (l *ListMessage) MessageUpdate(id int, newmessage string) error {
 	l.message[id] = mes
 	return nil
 }
+
+func (l *ListMessage) GetMeassagesBetweenUsers(user1 string, user2 string) (map[int]Message, error) {
+	l.mtx.Lock()
+	defer l.mtx.Unlock()
+	tmp := make(map[int]Message)
+	if !l.users.UserExistByName(user1) || !l.users.UserExistByName(user2) {
+		return nil, UserNotFoundError
+	}
+	for id, msg := range l.message {
+		if (msg.SendedFrom == user1 && msg.SendedTo == user2) || (msg.SendedFrom == user2 && msg.SendedTo == user1) {
+			tmp[id] = msg
+		}
+	}
+	return tmp, nil
+}
