@@ -1,6 +1,9 @@
 package chat
 
-import "time"
+import (
+	"sync"
+	"time"
+)
 
 type Message struct {
 	Text       string
@@ -39,4 +42,18 @@ func (m *Message) Read() {
 	readtime := time.Now()
 	m.IsRead = true
 	m.SendedTime = &readtime
+}
+
+type ListMessage struct {
+	message map[int]Message
+	users   *List
+	mtx     sync.RWMutex
+	idsq    int
+}
+
+func NewListMessage(users *List) *ListMessage {
+	return &ListMessage{
+		message: make(map[int]Message),
+		users:   users,
+	}
 }

@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"sync"
 	"time"
 )
 
@@ -19,5 +20,17 @@ func NewUser(name string) User {
 		Id:        idCounter,
 		CreatedAt: time.Now(),
 	}
-} 
+}
 
+type List struct {
+	userById   map[int]User
+	userByName map[string]int
+	mtx        sync.RWMutex
+}
+
+func NewList() *List {
+	return &List{
+		userById:   make(map[int]User),
+		userByName: make(map[string]int),
+	}
+}
