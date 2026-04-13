@@ -2,25 +2,32 @@ package httphandlers
 
 import (
 	"chat/chat"
+	messagecmd "chat/database/databaseCMD/messagecmd"
+	databaseCMD "chat/database/databaseCMD/usercmd"
+	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/jackc/pgx/v5"
 )
 
 type HtttpHandlers struct {
 	Chat *chat.ListMessage
 	User *chat.List
+	conn *pgx.Conn
+	ctx  context.Context
 }
 
-func NewHttpHandlers(ch *chat.ListMessage, u *chat.List) *HtttpHandlers {
+func NewHttpHandlers(ch *chat.ListMessage, u *chat.List, c *pgx.Conn, cont context.Context) *HtttpHandlers {
 	return &HtttpHandlers{
 		Chat: ch,
 		User: u,
+		conn: c,
+		ctx:  cont,
 	}
 }
 
@@ -58,13 +65,9 @@ func (h *HtttpHandlers) CreateUserHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 	newUser := chat.NewUser(userDTO.Name)
-	if err := h.User.CreateUser(newUser); err != nil {
+	if err := databaseCMD.InsertUser(h.ctx, h.conn, newUser); err != nil {
 		errDTO := NewErrDTO(err)
-		if errors.Is(err, chat.UserAlreadyExists) {
-			http.Error(w, errDTO.ErrToString(), http.StatusConflict)
-		} else {
-			http.Error(w, errDTO.ErrToString(), http.StatusInternalServerError)
-		}
+		http.Error(w, errDTO.ErrToString(), http.StatusInternalServerError)
 		return
 	}
 
@@ -94,14 +97,10 @@ status code: 404, 500 ...
 body: json with error + time
 */
 func (h *HtttpHandlers) ListUsersHandler(w http.ResponseWriter, r *http.Request) {
-	users, err := h.User.ListUsers()
+	users, err := databaseCMD.ListUsers(h.ctx, h.conn)
 	if err != nil {
 		errDTO := NewErrDTO(err)
-		if errors.Is(err, chat.UsersNotFound) {
-			http.Error(w, errDTO.ErrToString(), http.StatusNotFound)
-		} else {
-			http.Error(w, errDTO.ErrToString(), http.StatusInternalServerError)
-		}
+		http.Error(w, errDTO.ErrToString(), http.StatusInternalServerError)
 		return
 	}
 	b, err := json.MarshalIndent(users, "", "    ")
@@ -134,14 +133,10 @@ body: json with error + time
 
 func (h *HtttpHandlers) ListUserByNameHandler(w http.ResponseWriter, r *http.Request) {
 	username := mux.Vars(r)["name"]
-	user, err := h.User.ListUserByName(username)
+	user, err := databaseCMD.ListUsersByName(h.ctx, h.conn, username)
 	if err != nil {
 		errDTO := NewErrDTO(err)
-		if errors.Is(err, chat.UserNotFoundError) {
-			http.Error(w, errDTO.ErrToString(), http.StatusNotFound)
-		} else {
-			http.Error(w, errDTO.ErrToString(), http.StatusInternalServerError)
-		}
+		http.Error(w, errDTO.ErrToString(), http.StatusInternalServerError)
 		return
 	}
 
@@ -180,13 +175,9 @@ func (h *HtttpHandlers) DeleteUserHandler(w http.ResponseWriter, r *http.Request
 		http.Error(w, errDTO.ErrToString(), http.StatusBadRequest)
 		return
 	}
-	if err := h.User.DeleteUser(id); err != nil {
+	if err := databaseCMD.DeleteUser(h.ctx, h.conn, id); err != nil {
 		errDTO := NewErrDTO(err)
-		if errors.Is(err, chat.UserNotFoundError) {
-			http.Error(w, errDTO.ErrToString(), http.StatusNotFound)
-		} else {
-			http.Error(w, errDTO.ErrToString(), http.StatusInternalServerError)
-		}
+		http.Error(w, errDTO.ErrToString(), http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -212,7 +203,6 @@ func (h *HtttpHandlers) UpdateUserHandler(w http.ResponseWriter, r *http.Request
 		http.Error(w, errDTO.ErrToString(), http.StatusBadRequest)
 		return
 	}
-
 	idstr := mux.Vars(r)["id"]
 	id, err := strconv.Atoi(idstr)
 	if err != nil {
@@ -220,15 +210,11 @@ func (h *HtttpHandlers) UpdateUserHandler(w http.ResponseWriter, r *http.Request
 		http.Error(w, errDTO.ErrToString(), http.StatusBadRequest)
 		return
 	}
-	if err := h.User.UpdateUser(id, userDTO.Name); err != nil {
+	newUser := chat.NewUser(userDTO.Name)
+	newUser.Id = id
+	if err := databaseCMD.UpdateUser(h.ctx, h.conn, newUser); err != nil {
 		errDTO := NewErrDTO(err)
-		if errors.Is(err, chat.UserNotFoundError) {
-			http.Error(w, errDTO.ErrToString(), http.StatusNotFound)
-		} else if errors.Is(err, chat.UserAlreadyExists) {
-			http.Error(w, errDTO.ErrToString(), http.StatusBadRequest)
-		} else {
-			http.Error(w, errDTO.ErrToString(), http.StatusInternalServerError)
-		}
+		http.Error(w, errDTO.ErrToString(), http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -263,18 +249,16 @@ func (h *HtttpHandlers) SendMessageHandler(w http.ResponseWriter, r *http.Reques
 		http.Error(w, errDTO.ErrToString(), http.StatusBadRequest)
 		return
 	}
+
 	newMessage := chat.NewMessage(messageDTO.Text, messageDTO.Sender, messageDTO.Reciever)
-	sendedMessage, err := h.Chat.SendMessage(newMessage)
-	if err != nil {
+	if err := messagecmd.SendMessage(h.ctx, h.conn, newMessage); err != nil {
 		errDTO := NewErrDTO(err)
-		if errors.Is(err, chat.MessageIsEmpty) {
-			http.Error(w, errDTO.ErrToString(), http.StatusNotFound)
-		} else {
-			http.Error(w, errDTO.ErrToString(), http.StatusInternalServerError)
-		}
+		http.Error(w, errDTO.ErrToString(), http.StatusInternalServerError)
 		return
+
 	}
-	b, err := json.MarshalIndent(sendedMessage, "", "    ")
+
+	b, err := json.MarshalIndent(newMessage, "", "    ")
 	if err != nil {
 		panic(err)
 	}
@@ -300,15 +284,17 @@ status code: 404, 500 ...
 body: jsom with error + time
 */
 func (h *HtttpHandlers) GetMessagesByUserHandler(w http.ResponseWriter, r *http.Request) {
-	name := mux.Vars(r)["name"]
-	user, err := h.Chat.GetMessagesByUser(name)
+	idstr := mux.Vars(r)["id"]
+	id, err := strconv.Atoi(idstr)
 	if err != nil {
 		errDTO := NewErrDTO(err)
-		if errors.Is(err, chat.UserNotFoundError) {
-			http.Error(w, errDTO.ErrToString(), http.StatusNotFound)
-		} else {
-			http.Error(w, errDTO.ErrToString(), http.StatusInternalServerError)
-		}
+		http.Error(w, errDTO.ErrToString(), http.StatusBadRequest)
+		return
+	}
+	user, err := messagecmd.GetMessageByUser(h.ctx, h.conn, id)
+	if err != nil {
+		errDTO := NewErrDTO(err)
+		http.Error(w, errDTO.ErrToString(), http.StatusInternalServerError)
 		return
 	}
 
@@ -346,13 +332,9 @@ func (h *HtttpHandlers) DeleteMessageHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if err := h.Chat.DeleteMessage(id); err != nil {
+	if err := messagecmd.DeleteMessage(h.ctx, h.conn, id); err != nil {
 		errDTO := NewErrDTO(err)
-		if errors.Is(err, chat.MessageNotFound) {
-			http.Error(w, errDTO.ErrToString(), http.StatusNotFound)
-		} else {
-			http.Error(w, errDTO.ErrToString(), http.StatusInternalServerError)
-		}
+		http.Error(w, errDTO.ErrToString(), http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -379,16 +361,10 @@ func (h *HtttpHandlers) MessageIsReadHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if err := h.Chat.MessageIsRead(id); err != nil {
+	if err := messagecmd.MessageIsRead(h.ctx, h.conn, id); err != nil {
 		errDTO := NewErrDTO(err)
-
-		if errors.Is(err, chat.MessageNotFound) {
-			http.Error(w, errDTO.ErrToString(), http.StatusNotFound)
-			return
-		} else {
-			http.Error(w, errDTO.ErrToString(), http.StatusInternalServerError)
-			return
-		}
+		http.Error(w, errDTO.ErrToString(), http.StatusInternalServerError)
+		return
 	}
 	w.WriteHeader(http.StatusOK)
 }
@@ -422,13 +398,9 @@ func (h *HtttpHandlers) MessageUpdateHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if err := h.Chat.MessageUpdate(id, messageDTO.Text); err != nil {
+	if err := messagecmd.MessageUpdate(h.ctx, h.conn, id, messageDTO.Text); err != nil {
 		errDTO := NewErrDTO(err)
-		if errors.Is(err, chat.MessageNotFound) {
-			http.Error(w, errDTO.ErrToString(), http.StatusNotFound)
-		} else {
-			http.Error(w, errDTO.ErrToString(), http.StatusInternalServerError)
-		}
+		http.Error(w, errDTO.ErrToString(), http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -449,16 +421,24 @@ body: json with error + time
 */
 
 func (h *HtttpHandlers) GetMessagesBetweenUsersHandler(w http.ResponseWriter, r *http.Request) {
-	user1 := mux.Vars(r)["user1"]
-	user2 := mux.Vars(r)["user2"]
-	mes, err := h.Chat.GetMeassagesBetweenUsers(user1, user2)
+	user1str := mux.Vars(r)["user1"]
+	user1, err := strconv.Atoi(user1str)
 	if err != nil {
 		errDTO := NewErrDTO(err)
-		if errors.Is(err, chat.UserNotFoundError) {
-			http.Error(w, errDTO.ErrToString(), http.StatusNotFound)
-		} else {
-			http.Error(w, errDTO.ErrToString(), http.StatusInternalServerError)
-		}
+		http.Error(w, errDTO.ErrToString(), http.StatusBadRequest)
+		return
+	}
+	user2str := mux.Vars(r)["user2"]
+	user2, err := strconv.Atoi(user2str)
+	if err != nil {
+		errDTO := NewErrDTO(err)
+		http.Error(w, errDTO.ErrToString(), http.StatusBadRequest)
+		return
+	}
+	mes, err := messagecmd.GetMessagesBetweenUsers(h.ctx, h.conn, user1, user2)
+	if err != nil {
+		errDTO := NewErrDTO(err)
+		http.Error(w, errDTO.ErrToString(), http.StatusInternalServerError)
 		return
 	}
 	b, err := json.MarshalIndent(mes, "", "    ")
